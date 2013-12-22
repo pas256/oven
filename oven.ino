@@ -1,40 +1,36 @@
-/* Serial 7-Segment Display Example Code
-    I2C Mode Stopwatch
-   by: Jim Lindblom
-     SparkFun Electronics
-   date: November 27, 2012
-   license: This code is public domain.
-
-   This example code shows how you could use the Arduino Wire 
-   library to interface with a Serial 7-Segment Display.
-
-   There are example functions for setting the display's
-   brightness, decimals, clearing the display, and sending a 
-   series of bytes via I2C.
-
-   Each I2C transfer begins with a Wire.beginTransmission(address)
-   where address is the 7-bit address of the device set to 
-   receive the data. Wire.write() sends a byte of data. I2C
-   communication is closed with Wire.endTransmission().
-
-   Circuit:
-   Arduino -------------- Serial 7-Segment
-     5V   --------------------  VCC
-     GND  --------------------  GND
-     SDA  --------------------  SDA (A4 on older 'duino's)
-     SCL  --------------------  SCL (A5 on older 'duino's)
-*/
+/* Matthew's Microwave Oven
+ */
 #include <Wire.h> // Include the Arduino SPI library
 
-// Here we'll define the I2C address of our S7S. By default it
-//  should be 0x71. This can be changed, though.
+// I2C address of our S7S
 const byte s7sAddress = 0x71;
+
+// Pin number the push button is connected to
+const int buttonPin = 2;
+
+// Somewhere to store the state of the button
+int buttonState = 0;
+
+// Pin numbers for the RGB LEB
+const int ledRedPin = 9;
+const int ledGreenPin = 10;
+const int ledBluePin = 11;
 
 unsigned int counter = 9900;  // This variable will count up to 65k
 char tempString[10];  // Will be used with sprintf to create strings
 
 void setup()
 {
+  Serial.begin(9600);
+  
+  // Enable push button
+  pinMode(buttonPin, INPUT);
+
+  // Set the RGB LEB pins as output
+  pinMode(ledRedPin, OUTPUT);
+  pinMode(ledGreenPin, OUTPUT);
+  pinMode(ledBluePin, OUTPUT);  
+   
   Wire.begin();  // Initialize hardware I2C pins
 
   // Clear the display, and then turn on all segments and decimals
@@ -44,8 +40,12 @@ void setup()
   //  The I2C.write function only allows sending of a single
   //  byte at a time.
   s7sSendStringI2C("-HI-");
+  delay(1500);
+  s7sSendStringI2C("HELO");
+  delay(1500);
   setDecimalsI2C(0b111111);  // Turn on all decimals, colon, apos
 
+  delay(1500);
   // Flash brightness values at the beginning
   setBrightnessI2C(0);  // Lowest brightness
   delay(1500);
@@ -58,6 +58,15 @@ void setup()
 
 void loop()
 {
+  // Read the state of the button
+  buttonState = digitalRead(buttonPin);
+  if (buttonState == LOW) {
+    Serial.println("Button pushed ON");
+    setColor(255, 0, 0);
+  } else {  
+    setColor(0, 255, 0);
+  }
+  
   // Magical sprintf creates a string for us to send to the s7s.
   //  The %4d option creates a 4-digit integer.
   sprintf(tempString, "%4d", counter);
@@ -73,6 +82,14 @@ void loop()
 
   counter++;  // Increment the counter
   delay(100);  // This will make the display update at 10Hz.*/
+}
+
+// Sets the color of the RGB LEB
+void setColor(int red, int green, int blue)
+{
+  analogWrite(ledRedPin, red);
+  analogWrite(ledGreenPin, green);
+  analogWrite(ledBluePin, blue);  
 }
 
 // This custom function works somewhat like a serial.print.
