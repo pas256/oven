@@ -2,19 +2,26 @@
  */
 #include <Wire.h> // Include the Arduino SPI library
 
-// I2C address of our S7S
-const byte s7sAddress = 0x71;
-
 // Pin number the push button is connected to
 const int buttonPin = 2;
 
 // Somewhere to store the state of the button
 int buttonState = 0;
 
+// Potentiometer PIN
+const int potentiometerPin = A0;
+
+// Value of the potentiometer
+int potentiometerValue = 0;
+int potentiometerLastValue = 0;
+
 // Pin numbers for the RGB LEB
 const int ledRedPin = 9;
 const int ledGreenPin = 10;
 const int ledBluePin = 11;
+
+// I2C address of our S7S
+const byte s7sAddress = 0x71;
 
 unsigned int counter = 9900;  // This variable will count up to 65k
 char tempString[10];  // Will be used with sprintf to create strings
@@ -58,15 +65,28 @@ void setup()
 
 void loop()
 {
+  // Read value of potentiometer
+  potentiometerValue = analogRead(potentiometerPin);
+  if (potentiometerValue != potentiometerLastValue) {
+    Serial.println(potentiometerValue); 
+  }
+  potentiometerLastValue = potentiometerValue;
+
   // Read the state of the button
   buttonState = digitalRead(buttonPin);
   if (buttonState == LOW) {
     Serial.println("Button pushed ON");
-    setColor(255, 0, 0);
-  } else {  
-    setColor(0, 255, 0);
   }
   
+  // Set color of LED
+  if (buttonState == LOW) {
+    setColor(255, 0, 0);
+  } else {
+    int green = potentiometerValue / 10;
+    setColor(0, green, 0);
+  }
+  
+    
   // Magical sprintf creates a string for us to send to the s7s.
   //  The %4d option creates a 4-digit integer.
   sprintf(tempString, "%4d", counter);
