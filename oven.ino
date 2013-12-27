@@ -1,6 +1,7 @@
 /* Matthew's Microwave Oven
  */
 #include <Wire.h> // Include the Arduino SPI library
+#include "pitches.h"
 
 // Pin number the push button is connected to
 const int buttonPin = 13;
@@ -17,7 +18,7 @@ int displayValue = 0;
 int lastDisplayValue = 0;
 
 // Rotary encoder signals
-int A_SIG=0, B_SIG=1;
+int pulses, A_SIG=0, B_SIG=1;
 
 // Pin numbers for the RGB LEB
 const int ledRedPin = 9;
@@ -30,6 +31,7 @@ const byte s7sAddress = 0x71;
 // Will be used with sprintf to create strings
 char tempString[10];  
 
+int buzzerPin = 7;
 
 void setup()
 {
@@ -84,12 +86,17 @@ void loop()
       setColor(0, 0, 0);
       clearDisplayI2C();
       displayValue = 0;
+      pulses = 0;
       break;
   }  
 }
 
 
 void adjustTime() {
+  if (pulses < 0) {
+    pulses = 0;
+  }
+  displayValue = pulses / 4;
   updateDisplay();
 }
 
@@ -97,30 +104,71 @@ void countDown() {
   displayValue--;
   updateDisplay();
   
-  if (displayValue == 0) {
+  if (displayValue <= 0) {
     soupsReady();
   } else {
-    delay(500);
+    for (int i = 0; i < 5; i++) {
+      tone(buzzerPin, NOTE_C1, 50);
+      delay(50);
+      tone(buzzerPin, NOTE_D1, 50);
+      delay(50);
+    }
   }
 }
 
 void soupsReady() {
   buttonPressCounter = 2;
-  setColor(255, 255, 0);
-  s7sSendStringI2C("   0");
-  delay(500);
 
-  setColor(0, 255, 255);
-  s7sSendStringI2C("  00");
-  delay(500);
+  // notes in the melody:
+  int melody[] = {
+    NOTE_C4, NOTE_G3, NOTE_G3, NOTE_A3, NOTE_G3, 0, NOTE_B3, NOTE_C4 };
 
-  setColor(255, 0, 255);
-  s7sSendStringI2C(" 000");
-  delay(500);
+  // note durations: 4 = quarter note, 8 = eighth note, etc.:
+  int noteDurations[] = {
+    4, 8, 8, 4, 4, 4, 4, 4 };
+
+  int colors[][3] = {
+    {255, 255, 255},
+    {255, 255, 0},
+    {255, 128, 0},
+    {255, 0, 128},
+    {255, 0, 255},
+    {255, 0, 255},
+    {0, 255, 255},
+    {255, 255, 255},
+  };
+
+  char* display[] = {
+    "   0",
+    "  00",
+    "  00",
+    " 000",
+    "0000",
+    "0000",
+    "0  0",
+    " 00 "
+  };
   
-  setColor(255, 255, 255);
-  s7sSendStringI2C("0000");
-  delay(500);
+  // iterate over the notes of the melody:
+  for (int thisNote = 0; thisNote < 8; thisNote++) {
+
+    // to calculate the note duration, take one second 
+    // divided by the note type.
+    //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
+    int noteDuration = 1000/noteDurations[thisNote];
+    tone(buzzerPin, melody[thisNote],noteDuration);
+
+    // Change LED color
+    setColor(colors[thisNote][0], colors[thisNote][1], colors[thisNote][2]);
+    s7sSendStringI2C(display[thisNote]);
+
+    // to distinguish the notes, set a minimum time between them.
+    // the note's duration + 30% seems to work well:
+    int pauseBetweenNotes = noteDuration * 1.30;
+    delay(pauseBetweenNotes);
+    // stop the tone playing:
+    noTone(buzzerPin);
+  } 
 }
 
 void updateDisplay() {
@@ -210,10 +258,10 @@ void A_RISE(){
  A_SIG=1;
  
  if(B_SIG==0)
- displayValue++;//moving forward
+ pulses++;//moving forward
  if(B_SIG==1)
- displayValue--;//moving reverse
- Serial.println(displayValue);
+ pulses--;//moving reverse
+ Serial.println(pulses);
  attachInterrupt(0, A_FALL, FALLING);
 }
 
@@ -222,10 +270,10 @@ void A_FALL(){
  A_SIG=0;
  
  if(B_SIG==1)
- displayValue++;//moving forward
+ pulses++;//moving forward
  if(B_SIG==0)
- displayValue--;//moving reverse
- Serial.println(displayValue);
+ pulses--;//moving reverse
+ Serial.println(pulses);
  attachInterrupt(0, A_RISE, RISING);  
 }
 
@@ -234,10 +282,10 @@ void B_RISE(){
  B_SIG=1;
  
  if(A_SIG==1)
- displayValue++;//moving forward
+ pulses++;//moving forward
  if(A_SIG==0)
- displayValue--;//moving reverse
- Serial.println(displayValue);
+ pulses--;//moving reverse
+ Serial.println(pulses);
  attachInterrupt(1, B_FALL, FALLING);
 }
 
@@ -246,9 +294,9 @@ void B_FALL(){
  B_SIG=0;
  
  if(A_SIG==0)
- displayValue++;//moving forward
+ pulses++;//moving forward
  if(A_SIG==1)
- displayValue--;//moving reverse
- Serial.println(displayValue);
+ pulses--;//moving reverse
+ Serial.println(pulses);
  attachInterrupt(1, B_RISE, RISING);
 }
