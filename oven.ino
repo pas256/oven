@@ -21,9 +21,9 @@ int lastDisplayValue = 0;
 int pulses, A_SIG=0, B_SIG=1;
 
 // Pin numbers for the RGB LEB
-const int ledRedPin = 9;
-const int ledGreenPin = 10;
-const int ledBluePin = 11;
+const int ledRedPin = 8;
+const int ledGreenPin = 9;
+const int ledBluePin = 10;
 
 // I2C address of our S7S
 const byte s7sAddress = 0x71;
@@ -79,8 +79,7 @@ void loop()
       adjustTime();
       break;
     case 1:
-      setColor(255, 0, 0);
-      countDown();
+      cooking();
       break;
     case 2:
       setColor(0, 0, 0);
@@ -100,7 +99,9 @@ void adjustTime() {
   updateDisplay();
 }
 
-void countDown() {
+void cooking() {
+  setColor(255, 0, 0);
+
   displayValue--;
   updateDisplay();
   
@@ -121,42 +122,42 @@ void soupsReady() {
 
   // notes in the melody:
   int melody[] = {
-    NOTE_C4, NOTE_G3, NOTE_G3, NOTE_A3, NOTE_G3, 0, NOTE_B3, NOTE_C4 };
+    NOTE_C4, NOTE_C4, NOTE_D4, NOTE_C4, NOTE_F4, NOTE_E4 };
 
   // note durations: 4 = quarter note, 8 = eighth note, etc.:
   int noteDurations[] = {
-    4, 8, 8, 4, 4, 4, 4, 4 };
+    8, 8, 4, 4, 4, 2 };
 
   int colors[][3] = {
-    {255, 255, 255},
+    {255, 255, 0},
+    {255, 255, 128},
     {255, 255, 0},
     {255, 128, 0},
-    {255, 0, 128},
-    {255, 0, 255},
-    {255, 0, 255},
-    {0, 255, 255},
-    {255, 255, 255},
+    {255, 0, 0},
+    {255, 0, 255}
   };
 
   char* display[] = {
     "   0",
-    "  00",
+    "   0",
     "  00",
     " 000",
     "0000",
-    "0000",
-    "0  0",
-    " 00 "
+    "0  0"
   };
   
+  int numberOfNotes = sizeof(melody) / sizeof(int);
+  
   // iterate over the notes of the melody:
-  for (int thisNote = 0; thisNote < 8; thisNote++) {
+  for (int thisNote = 0; thisNote < numberOfNotes; thisNote++) {
 
     // to calculate the note duration, take one second 
     // divided by the note type.
     //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
-    int noteDuration = 1000/noteDurations[thisNote];
-    tone(buzzerPin, melody[thisNote],noteDuration);
+    int noteDuration = 1800/noteDurations[thisNote];
+    Serial.println(melody[thisNote]);
+    Serial.println(noteDuration);
+    tone(buzzerPin, melody[thisNote], noteDuration);
 
     // Change LED color
     setColor(colors[thisNote][0], colors[thisNote][1], colors[thisNote][2]);
