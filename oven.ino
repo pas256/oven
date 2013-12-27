@@ -5,15 +5,19 @@
 // Pin number the push button is connected to
 const int buttonPin = 2;
 
-// Somewhere to store the state of the button
+// The last state the button was in
 int buttonState = 0;
+int lastButtonState = 0;
+
+// This MOD the number of states determines the state we are in
+int buttonPressCounter = 0;
 
 // Potentiometer PIN
 const int potentiometerPin = A0;
 
 // Value of the potentiometer
 int potentiometerValue = 0;
-int potentiometerLastValue = 0;
+int lastPotentiometerValue = 0;
 
 // Pin numbers for the RGB LEB
 const int ledRedPin = 9;
@@ -23,7 +27,9 @@ const int ledBluePin = 11;
 // I2C address of our S7S
 const byte s7sAddress = 0x71;
 
-unsigned int counter = 9900;  // This variable will count up to 65k
+
+
+unsigned int counter = 990;  // This variable will count up to 65k
 char tempString[10];  // Will be used with sprintf to create strings
 
 void setup()
@@ -47,17 +53,7 @@ void setup()
   //  The I2C.write function only allows sending of a single
   //  byte at a time.
   s7sSendStringI2C("-HI-");
-  delay(1500);
-  s7sSendStringI2C("HELO");
-  delay(1500);
-  setDecimalsI2C(0b111111);  // Turn on all decimals, colon, apos
-
-  delay(1500);
-  // Flash brightness values at the beginning
-  setBrightnessI2C(0);  // Lowest brightness
-  delay(1500);
-  setBrightnessI2C(255);  // High brightness
-  delay(1500);
+  delay(2000);
 
   // Clear the display before jumping into loop
   clearDisplayI2C();  
@@ -67,42 +63,97 @@ void loop()
 {
   // Read value of potentiometer
   potentiometerValue = analogRead(potentiometerPin);
-  if (potentiometerValue != potentiometerLastValue) {
+  if (potentiometerValue != lastPotentiometerValue) {
     Serial.println(potentiometerValue); 
   }
-  potentiometerLastValue = potentiometerValue;
+  lastPotentiometerValue = potentiometerValue;
 
-  // Read the state of the button
-  buttonState = digitalRead(buttonPin);
-  if (buttonState == LOW) {
-    Serial.println("Button pushed ON");
+  if (hasButtonBeenPushed()) {
+    Serial.println("Button Pushed"); 
+    buttonPressCounter++;
+    Serial.println(buttonPressCounter); 
   }
   
-  // Set color of LED
-  if (buttonState == LOW) {
-    setColor(255, 0, 0);
+  switch (buttonPressCounter % 3) {
+    case 0:
+      setColor(0, 255, 0);
+      adjustTime();
+      break;
+    case 1:
+      setColor(255, 0, 0);
+      countDown();
+      break;
+    case 2:
+      setColor(0, 0, 0);
+      clearDisplayI2C();
+      counter = 0;
+      break;
+  }  
+}
+
+
+void adjustTime() {
+  counter = potentiometerValue;
+  printCounter();
+}
+
+void countDown() {
+  counter--;
+  printCounter();
+  
+  if (counter == 0) {
+    soupsReady();
   } else {
-    int green = potentiometerValue / 10;
-    setColor(0, green, 0);
+    delay(500);
   }
+}
+
+void soupsReady() {
+  buttonPressCounter = 2;
+  setColor(255, 255, 0);
+  s7sSendStringI2C("   0");
+  delay(500);
+
+  setColor(0, 255, 255);
+  s7sSendStringI2C("  00");
+  delay(500);
+
+  setColor(255, 0, 255);
+  s7sSendStringI2C(" 000");
+  delay(500);
   
-    
+  setColor(255, 255, 255);
+  s7sSendStringI2C("0000");
+  delay(500);
+}
+
+void printCounter() {
   // Magical sprintf creates a string for us to send to the s7s.
   //  The %4d option creates a 4-digit integer.
   sprintf(tempString, "%4d", counter);
 
   // This will output the tempString to the S7S
   s7sSendStringI2C(tempString);
-
-  // Print the decimal at the proper spot
-  if (counter < 10000)
-    setDecimalsI2C(0b00000100);  // Sets digit 3 decimal on
-  else
-    setDecimalsI2C(0b00001000);
-
-  counter++;  // Increment the counter
-  delay(100);  // This will make the display update at 10Hz.*/
 }
+
+/* Interrupt emulation. Detect when the button was pushed once and only once
+ * while it is held down
+ */ 
+boolean hasButtonBeenPushed() {
+  boolean hasButtonBeenPushed = false;
+  
+  // Read the state of the button
+  buttonState = digitalRead(buttonPin);
+  if (buttonState == LOW) {
+    if (lastButtonState == HIGH) {
+      hasButtonBeenPushed = true;
+    }
+  }
+  lastButtonState = buttonState;
+  
+  return hasButtonBeenPushed;
+}
+
 
 // Sets the color of the RGB LEB
 void setColor(int red, int green, int blue)
