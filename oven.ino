@@ -12,12 +12,12 @@ int lastButtonState = 0;
 // This MOD the number of states determines the state we are in
 int buttonPressCounter = 0;
 
-// Potentiometer PIN
-const int potentiometerPin = A0;
+// Number to display on the LED S7S
+int displayValue = 0;
+int lastDisplayValue = 0;
 
-// Value of the potentiometer
-int potentiometerValue = 0;
-int lastPotentiometerValue = 0;
+// Rotary encoder signals
+int A_SIG=0, B_SIG=1;
 
 // Pin numbers for the RGB LEB
 const int ledRedPin = 9;
@@ -27,15 +27,18 @@ const int ledBluePin = 11;
 // I2C address of our S7S
 const byte s7sAddress = 0x71;
 
+// Will be used with sprintf to create strings
+char tempString[10];  
 
-
-unsigned int counter = 990;  // This variable will count up to 65k
-char tempString[10];  // Will be used with sprintf to create strings
 
 void setup()
 {
   Serial.begin(9600);
   
+  // Attach interrupts for rotary encoder
+  attachInterrupt(0, A_RISE, RISING);
+  attachInterrupt(1, B_RISE, RISING);
+    
   // Enable push button in LOW state
   pinMode(buttonPin, INPUT);
   digitalWrite(buttonPin, LOW);
@@ -62,13 +65,6 @@ void setup()
 
 void loop()
 {
-  // Read value of potentiometer
-  potentiometerValue = analogRead(potentiometerPin);
-  if (potentiometerValue != lastPotentiometerValue) {
-    Serial.println(potentiometerValue); 
-  }
-  lastPotentiometerValue = potentiometerValue;
-
   if (hasButtonBeenPushed()) {
     Serial.println("Button Pushed"); 
     buttonPressCounter++;
@@ -87,22 +83,21 @@ void loop()
     case 2:
       setColor(0, 0, 0);
       clearDisplayI2C();
-      counter = 0;
+      displayValue = 0;
       break;
   }  
 }
 
 
 void adjustTime() {
-  counter = potentiometerValue;
-  printCounter();
+  updateDisplay();
 }
 
 void countDown() {
-  counter--;
-  printCounter();
+  displayValue--;
+  updateDisplay();
   
-  if (counter == 0) {
+  if (displayValue == 0) {
     soupsReady();
   } else {
     delay(500);
@@ -128,10 +123,10 @@ void soupsReady() {
   delay(500);
 }
 
-void printCounter() {
+void updateDisplay() {
   // Magical sprintf creates a string for us to send to the s7s.
   //  The %4d option creates a 4-digit integer.
-  sprintf(tempString, "%4d", counter);
+  sprintf(tempString, "%4d", displayValue);
 
   // This will output the tempString to the S7S
   s7sSendStringI2C(tempString);
@@ -208,4 +203,52 @@ void setDecimalsI2C(byte decimals)
   Wire.write(0x77);
   Wire.write(decimals);
   Wire.endTransmission();
+}
+
+void A_RISE(){
+ detachInterrupt(0);
+ A_SIG=1;
+ 
+ if(B_SIG==0)
+ displayValue++;//moving forward
+ if(B_SIG==1)
+ displayValue--;//moving reverse
+ Serial.println(displayValue);
+ attachInterrupt(0, A_FALL, FALLING);
+}
+
+void A_FALL(){
+  detachInterrupt(0);
+ A_SIG=0;
+ 
+ if(B_SIG==1)
+ displayValue++;//moving forward
+ if(B_SIG==0)
+ displayValue--;//moving reverse
+ Serial.println(displayValue);
+ attachInterrupt(0, A_RISE, RISING);  
+}
+
+void B_RISE(){
+ detachInterrupt(1);
+ B_SIG=1;
+ 
+ if(A_SIG==1)
+ displayValue++;//moving forward
+ if(A_SIG==0)
+ displayValue--;//moving reverse
+ Serial.println(displayValue);
+ attachInterrupt(1, B_FALL, FALLING);
+}
+
+void B_FALL(){
+ detachInterrupt(1);
+ B_SIG=0;
+ 
+ if(A_SIG==0)
+ displayValue++;//moving forward
+ if(A_SIG==1)
+ displayValue--;//moving reverse
+ Serial.println(displayValue);
+ attachInterrupt(1, B_RISE, RISING);
 }
