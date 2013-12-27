@@ -3,7 +3,7 @@
 #include <Wire.h> // Include the Arduino SPI library
 
 // Pin number the push button is connected to
-const int buttonPin = 2;
+const int buttonPin = 13;
 
 // The last state the button was in
 int buttonState = 0;
@@ -36,8 +36,9 @@ void setup()
 {
   Serial.begin(9600);
   
-  // Enable push button
+  // Enable push button in LOW state
   pinMode(buttonPin, INPUT);
+  digitalWrite(buttonPin, LOW);
 
   // Set the RGB LEB pins as output
   pinMode(ledRedPin, OUTPUT);
@@ -158,9 +159,9 @@ boolean hasButtonBeenPushed() {
 // Sets the color of the RGB LEB
 void setColor(int red, int green, int blue)
 {
-  analogWrite(ledRedPin, red);
-  analogWrite(ledGreenPin, green);
-  analogWrite(ledBluePin, blue);  
+  analogWrite(ledRedPin, 255 - red);
+  analogWrite(ledGreenPin, 255 - green);
+  analogWrite(ledBluePin, 255 - blue);  
 }
 
 // This custom function works somewhat like a serial.print.
