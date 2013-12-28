@@ -3,6 +3,7 @@
 #include <Wire.h> // Include the Arduino SPI library
 #include "pitches.h"
 #include "S7S.h"
+#include "RotaryEncoder.h"
 
 // Pin number the push button is connected to
 const int buttonPin = 13;
@@ -17,9 +18,6 @@ int buttonPressCounter = 0;
 // Number to display on the LED S7S
 int displayValue = 0;
 int lastDisplayValue = 0;
-
-// Rotary encoder signals
-int pulses, A_SIG=0, B_SIG=1;
 
 // Pin numbers for the RGB LEB
 const int ledRedPin = 8;
@@ -40,8 +38,7 @@ void setup()
   Serial.begin(9600);
   
   // Attach interrupts for rotary encoder
-  attachInterrupt(0, A_RISE, RISING);
-  attachInterrupt(1, B_RISE, RISING);
+  re_setup();
     
   // Enable push button in LOW state
   pinMode(buttonPin, INPUT);
@@ -87,15 +84,16 @@ void loop()
       setColor(0, 0, 0);
       s7s.clearDisplay();
       displayValue = 0;
-      pulses = 0;
+      re_resetPulses();
       break;
   }  
 }
 
 
 void adjustTime() {
+  int pulses = re_getPulses();
   if (pulses < 0) {
-    pulses = 0;
+    re_resetPulses();
   }
   displayValue = pulses / 4;
   updateDisplay();
@@ -210,50 +208,3 @@ void setColor(int red, int green, int blue)
   analogWrite(ledBluePin, 255 - blue);  
 }
 
-void A_RISE(){
- detachInterrupt(0);
- A_SIG=1;
- 
- if(B_SIG==0)
- pulses++;//moving forward
- if(B_SIG==1)
- pulses--;//moving reverse
- Serial.println(pulses);
- attachInterrupt(0, A_FALL, FALLING);
-}
-
-void A_FALL(){
-  detachInterrupt(0);
- A_SIG=0;
- 
- if(B_SIG==1)
- pulses++;//moving forward
- if(B_SIG==0)
- pulses--;//moving reverse
- Serial.println(pulses);
- attachInterrupt(0, A_RISE, RISING);  
-}
-
-void B_RISE(){
- detachInterrupt(1);
- B_SIG=1;
- 
- if(A_SIG==1)
- pulses++;//moving forward
- if(A_SIG==0)
- pulses--;//moving reverse
- Serial.println(pulses);
- attachInterrupt(1, B_FALL, FALLING);
-}
-
-void B_FALL(){
- detachInterrupt(1);
- B_SIG=0;
- 
- if(A_SIG==0)
- pulses++;//moving forward
- if(A_SIG==1)
- pulses--;//moving reverse
- Serial.println(pulses);
- attachInterrupt(1, B_RISE, RISING);
-}
