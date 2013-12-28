@@ -20,7 +20,7 @@ int displayValue = 0;
 int lastDisplayValue = 0;
 
 // Pin numbers for the RGB LEB
-const int ledRedPin = 8;
+const int ledRedPin = 6;
 const int ledGreenPin = 9;
 const int ledBluePin = 10;
 
@@ -31,11 +31,12 @@ S7S s7s(s7sAddress);
 // Will be used with sprintf to create strings
 char tempString[10];  
 
+// Piezo buzzer pin number
 int buzzerPin = 7;
 
-void setup()
-{
-  Serial.begin(9600);
+
+void setup() {
+  Serial.begin(115200);
   
   // Attach interrupts for rotary encoder
   re_setup();
@@ -155,8 +156,6 @@ void soupsReady() {
     // divided by the note type.
     //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
     int noteDuration = 1800/noteDurations[thisNote];
-    Serial.println(melody[thisNote]);
-    Serial.println(noteDuration);
     tone(buzzerPin, melody[thisNote], noteDuration);
 
     // Change LED color
