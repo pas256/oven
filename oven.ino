@@ -2,6 +2,7 @@
  */
 #include <Wire.h> // Include the Arduino SPI library
 #include "pitches.h"
+#include "S7S.h"
 
 // Pin number the push button is connected to
 const int buttonPin = 13;
@@ -27,6 +28,7 @@ const int ledBluePin = 10;
 
 // I2C address of our S7S
 const byte s7sAddress = 0x71;
+S7S s7s(s7sAddress);
 
 // Will be used with sprintf to create strings
 char tempString[10];  
@@ -53,16 +55,16 @@ void setup()
   Wire.begin();  // Initialize hardware I2C pins
 
   // Clear the display, and then turn on all segments and decimals
-  clearDisplayI2C();  // Clears display, resets cursor
+  s7s.clearDisplay();  // Clears display, resets cursor
 
   // Custom function to send four bytes via I2C
   //  The I2C.write function only allows sending of a single
   //  byte at a time.
-  s7sSendStringI2C("-HI-");
+  s7s.sendString("-HI-");
   delay(2000);
 
   // Clear the display before jumping into loop
-  clearDisplayI2C();  
+  s7s.clearDisplay();  
 }
 
 void loop()
@@ -83,7 +85,7 @@ void loop()
       break;
     case 2:
       setColor(0, 0, 0);
-      clearDisplayI2C();
+      s7s.clearDisplay();
       displayValue = 0;
       pulses = 0;
       break;
@@ -161,7 +163,7 @@ void soupsReady() {
 
     // Change LED color
     setColor(colors[thisNote][0], colors[thisNote][1], colors[thisNote][2]);
-    s7sSendStringI2C(display[thisNote]);
+    s7s.sendString(display[thisNote]);
 
     // to distinguish the notes, set a minimum time between them.
     // the note's duration + 30% seems to work well:
@@ -178,7 +180,7 @@ void updateDisplay() {
   sprintf(tempString, "%4d", displayValue);
 
   // This will output the tempString to the S7S
-  s7sSendStringI2C(tempString);
+  s7s.sendString(tempString);
 }
 
 /* Interrupt emulation. Detect when the button was pushed once and only once
@@ -206,52 +208,6 @@ void setColor(int red, int green, int blue)
   analogWrite(ledRedPin, 255 - red);
   analogWrite(ledGreenPin, 255 - green);
   analogWrite(ledBluePin, 255 - blue);  
-}
-
-// This custom function works somewhat like a serial.print.
-//  You can send it an array of chars (string) and it'll print
-//  the first 4 characters in the array.
-void s7sSendStringI2C(String toSend)
-{
-  Wire.beginTransmission(s7sAddress);
-  for (int i=0; i<4; i++)
-  {
-    Wire.write(toSend[i]);
-  }
-  Wire.endTransmission();
-}
-
-// Send the clear display command (0x76)
-//  This will clear the display and reset the cursor
-void clearDisplayI2C()
-{
-  Wire.beginTransmission(s7sAddress);
-  Wire.write(0x76);  // Clear display command
-  Wire.endTransmission();
-}
-
-// Set the displays brightness. Should receive byte with the value
-//  to set the brightness to
-//  dimmest------------->brightest
-//     0--------127--------255
-void setBrightnessI2C(byte value)
-{
-  Wire.beginTransmission(s7sAddress);
-  Wire.write(0x7A);  // Set brightness command byte
-  Wire.write(value);  // brightness data byte
-  Wire.endTransmission();
-}
-
-// Turn on any, none, or all of the decimals.
-//  The six lowest bits in the decimals parameter sets a decimal 
-//  (or colon, or apostrophe) on or off. A 1 indicates on, 0 off.
-//  [MSB] (X)(X)(Apos)(Colon)(Digit 4)(Digit 3)(Digit2)(Digit1)
-void setDecimalsI2C(byte decimals)
-{
-  Wire.beginTransmission(s7sAddress);
-  Wire.write(0x77);
-  Wire.write(decimals);
-  Wire.endTransmission();
 }
 
 void A_RISE(){
