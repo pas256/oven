@@ -8,12 +8,13 @@
 // Pin number the push button is connected to
 const int buttonPin = 13;
 
-// The last state the button was in
+// The push button states
 int buttonState = 0;
 int lastButtonState = 0;
+boolean wasLongPress = false;
 
-// This MOD the number of states determines the state we are in
-int buttonPressCounter = 0;
+// This is the mode the program is currently in
+int mode = 0;
 
 // Number to display on the LED S7S
 int displayValue = 0;
@@ -34,6 +35,23 @@ char tempString[10];
 // Piezo buzzer pin number
 int buzzerPin = 7;
 
+// Place to store current time
+unsigned long now;
+long offset = 0;
+  
+// The time (in ms) when the button was pressed down
+unsigned long buttonDownTime;
+
+// Amount of time (in ms) to hold the button down to set the clock
+const int buttonSetClockDuration = 5000;  // 10 seconds
+
+
+const int MODE_CLOCK = 0;
+const int MODE_SET_COOK_TIME = 1;
+const int MODE_COOK = 2;
+const int MODE_SET_CLOCK = 3;
+
+
 
 void setup() {
   Serial.begin(115200);
@@ -49,15 +67,14 @@ void setup() {
   pinMode(ledRedPin, OUTPUT);
   pinMode(ledGreenPin, OUTPUT);
   pinMode(ledBluePin, OUTPUT);  
-   
-  Wire.begin();  // Initialize hardware I2C pins
+  
+  // Initialize hardware I2C pins for S7S
+  Wire.begin();
 
-  // Clear the display, and then turn on all segments and decimals
-  s7s.clearDisplay();  // Clears display, resets cursor
+  // Clear display, reset cursor
+  s7s.clearDisplay();
 
-  // Custom function to send four bytes via I2C
-  //  The I2C.write function only allows sending of a single
-  //  byte at a time.
+  // Welcome
   s7s.sendString("-HI-");
   delay(2000);
 
@@ -65,33 +82,109 @@ void setup() {
   s7s.clearDisplay();  
 }
 
-void loop()
-{
-  if (hasButtonBeenPushed()) {
-    Serial.println("Button Pushed"); 
-    buttonPressCounter++;
-    Serial.println(buttonPressCounter); 
-  }
+
+void loop() {
+  doButtonCheck();
   
-  switch (buttonPressCounter % 3) {
-    case 0:
-      setColor(0, 255, 0);
-      adjustTime();
+  switch (mode) {
+    case MODE_CLOCK:
+      displayClock();
       break;
-    case 1:
+    case MODE_SET_COOK_TIME:
+      adjustCountdownTimer();
+      break;
+    case MODE_COOK:
       cooking();
       break;
-    case 2:
-      setColor(0, 0, 0);
-      s7s.clearDisplay();
-      displayValue = 0;
-      re_resetPulses();
+    case MODE_SET_CLOCK:
+      setClock();
       break;
   }  
 }
 
 
-void adjustTime() {
+void doButtonCheck() {
+  // Read the state of the button
+  buttonState = digitalRead(buttonPin);
+  if (buttonState == LOW) {
+    if (lastButtonState == HIGH) {
+      Serial.println("Button Pushed");
+      switchMode();
+    }
+  } else {
+    if (lastButtonState == LOW) {
+      // Record time button was pushed
+      buttonDownTime = millis();
+    }
+
+    // Check for long press
+    if (millis() - buttonDownTime >= buttonSetClockDuration) {
+        Serial.println("Button pressed for 10 seconds");
+        wasLongPress = true;
+
+        // Set time setup goes here
+        setColor(0, 128, 255);
+        re_resetPulses();
+    }
+  }
+  
+  // Save the previous state for the next loop
+  lastButtonState = buttonState;
+}
+
+
+void switchMode() {
+  if (wasLongPress) {
+    mode = MODE_SET_CLOCK;
+    wasLongPress = false;
+    
+  } else {
+    // Normal mode switch
+    mode++;
+    mode = mode % 3;
+    Serial.print("Now in mode: "); 
+    Serial.println(mode); 
+  }
+}
+
+
+void displayClock() {
+  setColor(0, 0, 0);
+  
+  now = millis() + offset + 86400000;
+  int seconds = (now / 1000) % 60;
+  int minutes = (now / 1000 / 60) % 60;
+  int hours = (now / 1000 / 60 / 60) % 12;
+  
+  if (hours == 0) {
+    hours = 12;
+  }
+  
+  sprintf(tempString, "%02d%02d", hours, minutes);
+  s7s.sendString(tempString);
+  
+  if (seconds % 2 == 0) {
+    s7s.setDecimals(0b00010000); 
+  } else {
+    s7s.setDecimals(0b00000000);
+  }
+}
+
+
+void setClock() {
+  setColor(0, 0, 255);
+
+  long pulses = (long) re_getPulses();
+  offset = (pulses / 4) * 1000 * 60;
+
+  displayClock();
+  s7s.setDecimals(0b00010000);
+}
+
+
+void adjustCountdownTimer() {
+  setColor(0, 255, 0);
+
   int pulses = re_getPulses();
   if (pulses < 0) {
     re_resetPulses();
@@ -99,6 +192,7 @@ void adjustTime() {
   displayValue = pulses / 4;
   updateDisplay();
 }
+
 
 void cooking() {
   setColor(255, 0, 0);
@@ -112,14 +206,20 @@ void cooking() {
     for (int i = 0; i < 5; i++) {
       tone(buzzerPin, NOTE_C1, 50);
       delay(50);
-      tone(buzzerPin, NOTE_D1, 50);
+      tone(buzzerPin, NOTE_C2, 50);
       delay(50);
     }
+    noTone(buzzerPin);
   }
 }
 
+
 void soupsReady() {
-  buttonPressCounter = 2;
+  // Switch to clock mode after song and dance
+  mode = MODE_CLOCK;
+  
+  displayValue = 0;  
+  re_resetPulses();
 
   // notes in the melody:
   int melody[] = {
@@ -131,7 +231,7 @@ void soupsReady() {
 
   int colors[][3] = {
     {255, 255, 0},
-    {255, 255, 128},
+    {255, 255, 255}, // was 128 Blue (pin 10)
     {255, 255, 0},
     {255, 128, 0},
     {255, 0, 0},
@@ -180,23 +280,6 @@ void updateDisplay() {
   s7s.sendString(tempString);
 }
 
-/* Interrupt emulation. Detect when the button was pushed once and only once
- * while it is held down
- */ 
-boolean hasButtonBeenPushed() {
-  boolean hasButtonBeenPushed = false;
-  
-  // Read the state of the button
-  buttonState = digitalRead(buttonPin);
-  if (buttonState == LOW) {
-    if (lastButtonState == HIGH) {
-      hasButtonBeenPushed = true;
-    }
-  }
-  lastButtonState = buttonState;
-  
-  return hasButtonBeenPushed;
-}
 
 
 // Sets the color of the RGB LEB
@@ -206,4 +289,5 @@ void setColor(int red, int green, int blue)
   analogWrite(ledGreenPin, 255 - green);
   analogWrite(ledBluePin, 255 - blue);  
 }
+
 
