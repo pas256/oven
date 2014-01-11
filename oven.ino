@@ -4,6 +4,7 @@
 #include "pitches.h"
 #include "S7S.h"
 #include "RotaryEncoder.h"
+#include "RGB.h"
 
 // Pin number the push button is connected to
 const int buttonPin = 13;
@@ -24,6 +25,7 @@ int lastDisplayValue = 0;
 const int ledRedPin = 6;
 const int ledGreenPin = 9;
 const int ledBluePin = 10;
+RGB rgb(ledRedPin, ledGreenPin, ledBluePin, false);
 
 // I2C address of our S7S
 const byte s7sAddress = 0x71;
@@ -41,6 +43,7 @@ long offset = 0;
   
 // The time (in ms) when the button was pressed down
 unsigned long buttonDownTime;
+boolean cycleColors = true;
 
 // Amount of time (in ms) to hold the button down to set the clock
 const int buttonSetClockDuration = 5000;  // 10 seconds
@@ -64,9 +67,7 @@ void setup() {
   digitalWrite(buttonPin, LOW);
 
   // Set the RGB LEB pins as output
-  pinMode(ledRedPin, OUTPUT);
-  pinMode(ledGreenPin, OUTPUT);
-  pinMode(ledBluePin, OUTPUT);  
+  rgb.setup();
   
   // Initialize hardware I2C pins for S7S
   Wire.begin();
@@ -74,12 +75,19 @@ void setup() {
   // Clear display, reset cursor
   s7s.clearDisplay();
 
+  // Set baud rate higher
+  s7s.setBaudRate(6);
+  
+  // Set brightness
+  s7s.setBrightness(255);
+
   // Welcome
   s7s.sendString("-HI-");
+  Serial.println("Hi");
   delay(2000);
 
   // Clear the display before jumping into loop
-  s7s.clearDisplay();  
+  s7s.clearDisplay();
 }
 
 
@@ -119,12 +127,15 @@ void doButtonCheck() {
 
     // Check for long press
     if (millis() - buttonDownTime >= buttonSetClockDuration) {
-        Serial.println("Button pressed for 10 seconds");
         wasLongPress = true;
 
         // Set time setup goes here
-        setColor(0, 128, 255);
-        re_resetPulses();
+        rgb.setColor(0, 128, 255);
+        cycleColors = false;
+        
+        //offset = (pulses / 4) * 1000 * 60;
+        long pulses = offset / 60 / 1000 * 4;
+        re_setPulses(pulses);
     }
   }
   
@@ -143,47 +154,88 @@ void switchMode() {
     mode++;
     mode = mode % 3;
     Serial.print("Now in mode: "); 
-    Serial.println(mode); 
+    Serial.println(mode);
+    
+    // Reset pulses for normal mode switch
+    re_resetPulses();
+    
+    cycleColors = true;
   }
+  
+  // Always clear display before switching modes
+  s7s.clearDisplay();
 }
 
 
 void displayClock() {
-  setColor(0, 0, 0);
-  
   now = millis() + offset + 86400000;
   int seconds = (now / 1000) % 60;
   int minutes = (now / 1000 / 60) % 60;
-  int hours = (now / 1000 / 60 / 60) % 12;
-  
+  int hours24 = (now / 1000 / 60 / 60) % 24;
+  int hours = hours24 % 12;
+    
   if (hours == 0) {
     hours = 12;
   }
   
-  sprintf(tempString, "%02d%02d", hours, minutes);
+  sprintf(tempString, "%2d%02d", hours, minutes);
   s7s.sendString(tempString);
   
-  if (seconds % 2 == 0) {
-    s7s.setDecimals(0b00010000); 
+  if (mode == MODE_SET_CLOCK) {
+    // Decimals
+    if (hours24 >= 12) {
+      s7s.setDecimals(0b00011000); 
+    } else {
+      s7s.setDecimals(0b00010000); 
+    }
   } else {
-    s7s.setDecimals(0b00000000);
-  }
+    // Decimals
+    if (seconds % 2 == 0) {
+      if (hours24 >= 12) {
+        s7s.setDecimals(0b00011000); 
+      } else {
+        s7s.setDecimals(0b00010000); 
+      }
+    } else {
+      if (hours24 >= 12) {
+        s7s.setDecimals(0b00001000); 
+      } else {
+        s7s.setDecimals(0b00000000);
+      }
+    }
+    
+    // Brightness
+    int s7sBrightness = 255;
+    int buttonBrightness = 255;
+    if (hours24 < 7 || hours24 >= 20) {
+      s7sBrightness = 32;
+      buttonBrightness = 32;
+    }
+    s7s.setBrightness(s7sBrightness);
+
+    // Cycle colors
+    if (cycleColors) {
+      int v = (now / 100) % 360;
+      rgb.cycleColor(v, buttonBrightness);
+    }
+  }  
 }
 
 
 void setClock() {
-  setColor(0, 0, 255);
+  rgb.setColor(0, 0, 255);
 
   long pulses = (long) re_getPulses();
   offset = (pulses / 4) * 1000 * 60;
 
   displayClock();
-  s7s.setDecimals(0b00010000);
 }
 
 
 void adjustCountdownTimer() {
-  setColor(0, 255, 0);
+  rgb.setColor(0, 255, 0);
+
+  s7s.setBrightness(255);
 
   int pulses = re_getPulses();
   if (pulses < 0) {
@@ -195,7 +247,9 @@ void adjustCountdownTimer() {
 
 
 void cooking() {
-  setColor(255, 0, 0);
+  rgb.setColor(255, 0, 0);
+
+  s7s.setBrightness(255);
 
   displayValue--;
   updateDisplay();
@@ -204,10 +258,10 @@ void cooking() {
     soupsReady();
   } else {
     for (int i = 0; i < 5; i++) {
-      tone(buzzerPin, NOTE_C1, 50);
-      delay(50);
-      tone(buzzerPin, NOTE_C2, 50);
-      delay(50);
+      tone(buzzerPin, NOTE_C1, 100);
+      delay(100);
+      tone(buzzerPin, NOTE_C2, 100);
+      delay(100);
     }
     noTone(buzzerPin);
   }
@@ -259,7 +313,7 @@ void soupsReady() {
     tone(buzzerPin, melody[thisNote], noteDuration);
 
     // Change LED color
-    setColor(colors[thisNote][0], colors[thisNote][1], colors[thisNote][2]);
+    rgb.setColor(colors[thisNote][0], colors[thisNote][1], colors[thisNote][2]);
     s7s.sendString(display[thisNote]);
 
     // to distinguish the notes, set a minimum time between them.
@@ -282,12 +336,6 @@ void updateDisplay() {
 
 
 
-// Sets the color of the RGB LEB
-void setColor(int red, int green, int blue)
-{
-  analogWrite(ledRedPin, 255 - red);
-  analogWrite(ledGreenPin, 255 - green);
-  analogWrite(ledBluePin, 255 - blue);  
-}
+
 
 

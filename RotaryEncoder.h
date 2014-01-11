@@ -9,7 +9,7 @@
 void re_setup();
 
 // Returns the number of pulses counted so far
-int re_getPulses();
+long re_getPulses();
 
 // Manually set the number of pulses
 void re_setPulses(int number);

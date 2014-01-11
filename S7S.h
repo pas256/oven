@@ -31,8 +31,20 @@ class S7S {
     //  [MSB] (X)(X)(Apos)(Colon)(Digit 4)(Digit 3)(Digit2)(Digit1)
     void setDecimals(byte decimals);
     
+    // Set the baud rate of the display
+    //  0  = 2400
+    //  1  = 4800
+    //  2  = 9600  (factory default)
+    //  3  = 14400
+    //  4  = 19200
+    //  5  = 38400
+    //  6  = 57600
+    void setBaudRate(byte value);
+    
   private:
     byte _s7sAddress;
+    byte _brightness;
+    byte _decimals;
 };
 
 #endif

@@ -3,9 +3,11 @@
 #include "Arduino.h"
 #include "RotaryEncoder.h"
 
+// Debugging flag
+const bool DEBUGGING = false;
 
 // Pulse counter
-int _pulses = 0;
+long _pulses = 0;
 
 // Rotary encoder signals
 int _A_SIG = 0, _B_SIG = 0;
@@ -18,7 +20,7 @@ void re_setup() {
 }
 
 // Returns the number of pulses counted so far
-int re_getPulses() {
+long re_getPulses() {
   return _pulses;
 }
 
@@ -38,13 +40,13 @@ void re_aRise(){
  _A_SIG = 1;
  
  if (_B_SIG == 0) {
-   _pulses++; //moving forward
+   _pulses--; //moving forward
  }
  if (_B_SIG == 1) {
-   _pulses--; //moving reverse
+   _pulses++; //moving reverse
  }
  
- Serial.println(_pulses);
+ if (DEBUGGING) Serial.println(_pulses);
  attachInterrupt(0, re_aFall, FALLING);
 }
 
@@ -53,13 +55,13 @@ void re_aFall(){
  _A_SIG = 0;
  
  if (_B_SIG == 1) {
-   _pulses++; //moving forward
+   _pulses--; //moving forward
  }
  if (_B_SIG == 0) {
-   _pulses--; //moving reverse
+   _pulses++; //moving reverse
  }
  
- Serial.println(_pulses);
+ if (DEBUGGING) Serial.println(_pulses);
  attachInterrupt(0, re_aRise, RISING);  
 }
 
@@ -68,13 +70,13 @@ void re_bRise(){
  _B_SIG = 1;
  
  if (_A_SIG == 1) {
-   _pulses++; //moving forward
+   _pulses--; //moving forward
  }
  if (_A_SIG == 0) {
-   _pulses--; //moving reverse
+   _pulses++; //moving reverse
  }
  
- Serial.println(_pulses);
+ if (DEBUGGING) Serial.println(_pulses);
  attachInterrupt(1, re_bFall, FALLING);
 }
 
@@ -83,12 +85,12 @@ void re_bFall(){
  _B_SIG = 0;
  
  if (_A_SIG == 0) {
-   _pulses++; //moving forward
+   _pulses--; //moving forward
  }
  if (_A_SIG == 1) {
-   _pulses--; //moving reverse
+   _pulses++; //moving reverse
  }
 
- Serial.println(_pulses);
+ if (DEBUGGING) Serial.println(_pulses);
  attachInterrupt(1, re_bRise, RISING);
 }
