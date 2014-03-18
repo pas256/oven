@@ -32,7 +32,7 @@ const byte s7sAddress = 0x71;
 S7S s7s(s7sAddress);
 
 // Will be used with sprintf to create strings
-char tempString[10];  
+char tempString[10];
 
 // Piezo buzzer pin number
 int buzzerPin = 7;
@@ -40,13 +40,13 @@ int buzzerPin = 7;
 // Place to store current time
 unsigned long now;
 long offset = 0;
-  
+
 // The time (in ms) when the button was pressed down
 unsigned long buttonDownTime;
 boolean cycleColors = true;
 
 // Amount of time (in ms) to hold the button down to set the clock
-const int buttonSetClockDuration = 5000;  // 10 seconds
+const int buttonSetClockDuration = 8000;  // 8 seconds
 
 
 const int MODE_CLOCK = 0;
@@ -58,17 +58,17 @@ const int MODE_SET_CLOCK = 3;
 
 void setup() {
   Serial.begin(115200);
-  
+
   // Attach interrupts for rotary encoder
   re_setup();
-    
+
   // Enable push button in LOW state
   pinMode(buttonPin, INPUT);
   digitalWrite(buttonPin, LOW);
 
   // Set the RGB LEB pins as output
   rgb.setup();
-  
+
   // Initialize hardware I2C pins for S7S
   Wire.begin();
 
@@ -77,7 +77,7 @@ void setup() {
 
   // Set baud rate higher
   s7s.setBaudRate(6);
-  
+
   // Set brightness
   s7s.setBrightness(255);
 
@@ -93,7 +93,7 @@ void setup() {
 
 void loop() {
   doButtonCheck();
-  
+
   switch (mode) {
     case MODE_CLOCK:
       displayClock();
@@ -107,7 +107,7 @@ void loop() {
     case MODE_SET_CLOCK:
       setClock();
       break;
-  }  
+  }
 }
 
 
@@ -132,13 +132,13 @@ void doButtonCheck() {
         // Set time setup goes here
         rgb.setColor(0, 128, 255);
         cycleColors = false;
-        
+
         //offset = (pulses / 4) * 1000 * 60;
         long pulses = offset / 60 / 1000 * 4;
         re_setPulses(pulses);
     }
   }
-  
+
   // Save the previous state for the next loop
   lastButtonState = buttonState;
 }
@@ -148,20 +148,20 @@ void switchMode() {
   if (wasLongPress) {
     mode = MODE_SET_CLOCK;
     wasLongPress = false;
-    
+
   } else {
     // Normal mode switch
     mode++;
     mode = mode % 3;
-    Serial.print("Now in mode: "); 
+    Serial.print("Now in mode: ");
     Serial.println(mode);
-    
+
     // Reset pulses for normal mode switch
     re_resetPulses();
-    
+
     cycleColors = true;
   }
-  
+
   // Always clear display before switching modes
   s7s.clearDisplay();
 }
@@ -173,37 +173,38 @@ void displayClock() {
   int minutes = (now / 1000 / 60) % 60;
   int hours24 = (now / 1000 / 60 / 60) % 24;
   int hours = hours24 % 12;
-    
+  int cycleSpeed = 500;
+
   if (hours == 0) {
     hours = 12;
   }
-  
+
   sprintf(tempString, "%2d%02d", hours, minutes);
   s7s.sendString(tempString);
-  
+
   if (mode == MODE_SET_CLOCK) {
     // Decimals
     if (hours24 >= 12) {
-      s7s.setDecimals(0b00011000); 
+      s7s.setDecimals(0b00011000);
     } else {
-      s7s.setDecimals(0b00010000); 
+      s7s.setDecimals(0b00010000);
     }
   } else {
     // Decimals
     if (seconds % 2 == 0) {
       if (hours24 >= 12) {
-        s7s.setDecimals(0b00011000); 
+        s7s.setDecimals(0b00011000);
       } else {
-        s7s.setDecimals(0b00010000); 
+        s7s.setDecimals(0b00010000);
       }
     } else {
       if (hours24 >= 12) {
-        s7s.setDecimals(0b00001000); 
+        s7s.setDecimals(0b00001000);
       } else {
         s7s.setDecimals(0b00000000);
       }
     }
-    
+
     // Brightness
     int s7sBrightness = 255;
     int buttonBrightness = 255;
@@ -213,12 +214,20 @@ void displayClock() {
     }
     s7s.setBrightness(s7sBrightness);
 
+    if (minutes == 0) {
+      cycleColors = false;
+    } else {
+      cycleColors = true;
+    }
+
     // Cycle colors
     if (cycleColors) {
-      int v = (now / 100) % 360;
+      int v = (now / cycleSpeed) % 360;
       rgb.cycleColor(v, buttonBrightness);
+    } else {
+      rgb.setColor(174, 255, 255);
     }
-  }  
+  }
 }
 
 
@@ -253,7 +262,7 @@ void cooking() {
 
   displayValue--;
   updateDisplay();
-  
+
   if (displayValue <= 0) {
     soupsReady();
   } else {
@@ -271,8 +280,8 @@ void cooking() {
 void soupsReady() {
   // Switch to clock mode after song and dance
   mode = MODE_CLOCK;
-  
-  displayValue = 0;  
+
+  displayValue = 0;
   re_resetPulses();
 
   // notes in the melody:
@@ -300,13 +309,13 @@ void soupsReady() {
     "0000",
     "0  0"
   };
-  
+
   int numberOfNotes = sizeof(melody) / sizeof(int);
-  
+
   // iterate over the notes of the melody:
   for (int thisNote = 0; thisNote < numberOfNotes; thisNote++) {
 
-    // to calculate the note duration, take one second 
+    // to calculate the note duration, take one second
     // divided by the note type.
     //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
     int noteDuration = 1800/noteDurations[thisNote];
@@ -322,7 +331,7 @@ void soupsReady() {
     delay(pauseBetweenNotes);
     // stop the tone playing:
     noTone(buzzerPin);
-  } 
+  }
 }
 
 void updateDisplay() {
@@ -333,9 +342,3 @@ void updateDisplay() {
   // This will output the tempString to the S7S
   s7s.sendString(tempString);
 }
-
-
-
-
-
-
